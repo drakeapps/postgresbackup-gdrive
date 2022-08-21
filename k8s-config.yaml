@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: webapp-postgresbackup
+spec:
+  schedule: "3 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: webapp-postgresbackup
+            image: ghcr.io/drakeapps/postgresbackup-gdrive
+            imagePullPolicy: Always
+            env:
+              - name: POSTGRES_USER
+                value: root
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: postgres-pass
+                    key: password
+              - name: POSTGRES_HOST
+                value: webapp-postgres
+              - name: POSTGRES_DB
+                value: webapp
+              - name: RCLONE_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: rclone-token
+                    key: token
+              - name: DEST_DIR
+                value: /backups/k8s/db-backups/webapp/
+          restartPolicy: OnFailure
+
+

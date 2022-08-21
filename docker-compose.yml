@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  backup:
+    image: ghcr.io/drakeapps/postgresbackup-gdrive
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASS=x
+      - POSTGRES_HOST=mysql
+      - POSTGRES_DB=cool_data
+      - RCLONE_TOKEN={}
+      - DEST_DIR=/backups/db-backups/postgres
