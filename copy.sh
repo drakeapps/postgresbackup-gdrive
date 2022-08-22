@@ -5,7 +5,7 @@ set -eo pipefail
 base_filename="${POSTGRES_DB}_backup_`date +%Y_%m_%d__%H_%M_%S`"
 
 
-PG_PASSWORD="${POSTGRES_PASS}" pg_dump  -U "${POSTGRES_USER}"  -h "${POSTGRES_HOST}" "${POSTGRES_DB}" | gzip -9  > "/tmp/${base_filename}.sql.gz"
+PGPASSWORD="${POSTGRES_PASS}" pg_dump  -U "${POSTGRES_USER}"  -h "${POSTGRES_HOST}" "${POSTGRES_DB}" | gzip -9  > "/tmp/${base_filename}.sql.gz"
 
 # rclone config is a file, create it and label remote as gdrive
 mkdir -p /config/rclone
