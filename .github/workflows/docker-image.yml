@@ -1,37 +1,57 @@
-name: Docker Image CI
+name: Build and publish Image
 
 on:
   push:
-    branches: [ master ]
+    # Publish `master` as Docker `latest` image.
+    branches:
+      - master
     tags:
       - v*
-  
+
+env:
+  IMAGE_NAME: postgresbackup-gdrive
 
 jobs:
 
-  build:
+  # Push image to GitHub Packages.
+  # See also https://docs.docker.com/docker-hub/builds/
+  push:
 
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive
-
-    - name: Log into GitHub Container Registry
-    # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
-      run: echo "${{ secrets.CR_PAT }}" | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
-
-    - name: Push image to GitHub Container Registry
-      run: |
-        # Strip git ref prefix from version
-        VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-        # Strip "v" prefix from tag name
-        [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-        # Use Docker `latest` tag convention
-        [ "$VERSION" == "master" ] && VERSION=latest
-        echo IMAGE_ID=$IMAGE_ID
-        echo VERSION=$VERSION
-        docker tag ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive:$VERSION
-        docker push ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive:$VERSION
-
+      - uses: actions/checkout@v2
+      
+      - name: Prepare
+        if: success()
+        id: prepare
+        run: |
+          echo ::set-output name=docker_platforms::linux/386,linux/arm/v6,linux/arm/v7,linux/arm64,linux/amd64
+          echo ::set-output name=docker_username::drakeapps
+          echo ::set-output name=version::${GITHUB_REF#refs/*/}
+          echo ::set-output name=hash::${GITHUB_SHA}
+      - name: Set up buildx
+        uses: crazy-max/ghaction-docker-buildx@v3
+      - name: GHCR Login
+        if: success()
+        env:
+          CR_PAT: ${{ secrets.CR_PAT }}
+        run: |
+          echo "${{ secrets.CR_PAT }}" | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and publish image
+        if: success() && contains(steps.prepare.outputs.version, 'master')
+        run: |
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker buildx build \
+            --output type=image,name=ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive,push=true \
+            --platform ${{ steps.prepare.outputs.docker_platforms }} \
+            --tag "ghcr.io/${{ github.repository_owner }}/postgresbackup-gdrive:$VERSION" \
+            --file Dockerfile .
